@@ -106,10 +106,11 @@ function showBadge(results) {
   title.textContent = `Integraciones · ${getEnvironment()}`;
   badge.append(title);
   const list = document.createElement('ul');
-  list.style.cssText = 'margin:6px 0 0;padding-left:18px';
+  list.style.cssText = 'margin:6px 0 0;padding-left:18px;color:#fff';
   if (!results.length) results.push({ name: 'Ningún script de terceros activo' });
   results.forEach(({ name, ok }) => {
     const item = document.createElement('li');
+    item.style.cssText = 'color:#fff;font:inherit;margin:0';
     item.textContent = ok === undefined ? name : `${ok ? '✔' : '✖'} ${name}`;
     list.append(item);
   });
