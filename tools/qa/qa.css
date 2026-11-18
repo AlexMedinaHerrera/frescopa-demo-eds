@@ -137,7 +137,7 @@ body {
 
 .qa-main > .qa-summary {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 12px;
   padding: 0;
   background: none;
@@ -296,4 +296,22 @@ body {
 
 a {
   color: var(--qa-accent);
+}
+
+/* Abierto desde el Sidekick (paleta estrecha) */
+.qa-embed .qa-header {
+  padding-top: 12px;
+}
+
+.qa-embed .qa-header h1 {
+  font-size: 20px;
+}
+
+.qa-embed .qa-header p {
+  margin-bottom: 12px;
+}
+
+.qa-embed .qa-main > section,
+.qa-embed .qa-form {
+  padding: 14px;
 }
