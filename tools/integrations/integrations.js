@@ -305,7 +305,7 @@ function render() {
       el('li', {}, el('strong', {}, 'Preview'), ' Aplica y valida en ', el('a', { href: siteUrl('preview'), target: '_blank', rel: 'noopener' }, 'aem.page'), ` (${envNote('preview')}).`),
       el('li', {}, el('strong', {}, 'Live'), ' Promociona a ', el('a', { href: siteUrl('live'), target: '_blank', rel: 'noopener' }, 'aem.live'), ` y producción (${envNote('live')}).`),
     ),
-    INTEGRATIONS.map(renderIntegration),
+    ...INTEGRATIONS.map(renderIntegration),
     el(
       'footer',
       { class: 'ip-foot' },
