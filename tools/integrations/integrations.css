@@ -1,0 +1,246 @@
+:root {
+  --ip-bg: #f8f8f8;
+  --ip-surface: #fff;
+  --ip-text: #222;
+  --ip-muted: #6e6e6e;
+  --ip-border: #e1e1e1;
+  --ip-accent: #3b63fb;
+  --ip-live: #a33532;
+  --ip-ok: #12805c;
+  --ip-warn: #b05e00;
+  --ip-error: #d31510;
+  --ip-diff-bg: #fff4d6;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--ip-bg);
+  color: var(--ip-text);
+  font: 14px/1.5 'Adobe Clean', adobe-clean, system-ui, sans-serif;
+}
+
+main {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 24px;
+}
+
+h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+a {
+  color: var(--ip-accent);
+}
+
+.ip-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ip-site {
+  margin: 4px 0 0;
+  color: var(--ip-muted);
+}
+
+.ip-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ip-btn {
+  padding: 7px 16px;
+  border: 2px solid var(--ip-text);
+  border-radius: 16px;
+  background: transparent;
+  color: var(--ip-text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ip-btn-primary {
+  border-color: var(--ip-accent);
+  background: var(--ip-accent);
+  color: #fff;
+}
+
+.ip-btn-live {
+  border-color: var(--ip-live);
+  background: var(--ip-live);
+  color: #fff;
+}
+
+.ip-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.ip-message {
+  min-height: 21px;
+  margin: 12px 0;
+}
+
+.ip-message-ok {
+  color: var(--ip-ok);
+}
+
+.ip-message-error {
+  color: var(--ip-error);
+}
+
+.ip-flow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+  margin: 0 0 20px;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+
+.ip-flow li {
+  padding: 10px 12px;
+  border: 1px solid var(--ip-border);
+  border-radius: 8px;
+  background: var(--ip-surface);
+  color: var(--ip-muted);
+  counter-increment: step;
+}
+
+.ip-flow li::before {
+  content: counter(step) ". ";
+  font-weight: 700;
+}
+
+.ip-flow strong {
+  color: var(--ip-text);
+}
+
+.ip-card {
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid var(--ip-border);
+  border-radius: 8px;
+  background: var(--ip-surface);
+}
+
+.ip-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.ip-card-head p {
+  margin: 2px 0 0;
+  color: var(--ip-muted);
+}
+
+.ip-status {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ip-status-draft {
+  background: #e8edff;
+  color: var(--ip-accent);
+}
+
+.ip-status-validating {
+  background: #fff1dc;
+  color: var(--ip-warn);
+}
+
+.ip-status-synced {
+  background: #e3f5ee;
+  color: var(--ip-ok);
+}
+
+.ip-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.ip-table th,
+.ip-table td {
+  padding: 8px;
+  border-top: 1px solid var(--ip-border);
+  text-align: left;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+.ip-table thead th {
+  border-top: 0;
+  color: var(--ip-muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ip-table th[scope="row"] {
+  width: 22%;
+  font-weight: 400;
+}
+
+.ip-table input[type="text"],
+.ip-table select {
+  width: 100%;
+  padding: 5px 8px;
+  border: 1px solid #b0b0b0;
+  border-radius: 4px;
+  font: inherit;
+}
+
+.ip-table input[aria-invalid="true"] {
+  border-color: var(--ip-error);
+}
+
+.ip-switch {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--ip-accent);
+}
+
+.ip-flag.ip-on {
+  color: var(--ip-ok);
+  font-weight: 700;
+}
+
+.ip-flag.ip-off,
+.ip-missing {
+  color: var(--ip-muted);
+}
+
+.ip-diff {
+  background: var(--ip-diff-bg);
+}
+
+.ip-foot {
+  color: var(--ip-muted);
+}
+
+.ip-foot p {
+  margin: 4px 0;
+}
