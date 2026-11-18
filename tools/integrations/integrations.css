@@ -178,6 +178,7 @@ a {
 
 .ip-table {
   width: 100%;
+  min-width: 640px;
   border-collapse: collapse;
   table-layout: fixed;
 }
@@ -223,18 +224,92 @@ a {
   accent-color: var(--ip-accent);
 }
 
-.ip-flag.ip-on {
-  color: var(--ip-ok);
-  font-weight: 700;
-}
-
-.ip-flag.ip-off,
-.ip-missing {
+.ip-envs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-top: 12px;
   color: var(--ip-muted);
 }
 
-.ip-diff {
+.ip-perms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: 0 0 8px;
+  color: var(--ip-muted);
+  font-size: 12px;
+}
+
+.ip-perm {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+.ip-perm-yes {
+  background: #e3f5ee;
+  color: var(--ip-ok);
+}
+
+.ip-perm-no {
+  background: #fde8e8;
+  color: var(--ip-error);
+}
+
+.ip-table-wrap {
+  overflow-x: auto;
+}
+
+.ip-table thead small {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.ip-table .ip-row-paths th {
+  color: var(--ip-muted);
+}
+
+.ip-changed {
   background: var(--ip-diff-bg);
+}
+
+.ip-note {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.ip-note-draft {
+  color: var(--ip-accent);
+}
+
+.ip-note-live {
+  color: var(--ip-warn);
+}
+
+.ip-table input:disabled,
+.ip-table select:disabled {
+  background: #f0f0f0;
+  color: var(--ip-muted);
+}
+
+.ip-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.ip-hint {
+  color: var(--ip-muted);
+  font-size: 12px;
 }
 
 .ip-foot {
