@@ -24,6 +24,7 @@ A migration of [frescopa.coffee](https://frescopa.coffee/) to an AEM Edge Delive
 - **Content (DA):** https://da.live/#/jorgerzt/edsfrescopa. Pages are in the root (EN), `/en/`, `/es/`, `/fr/` and `/jp/`. Images are in `/media/`, header and footer in `nav` and `footer` (plus `/<locale>/nav|footer`), and the enquiry form in `/forms/enquire`.
 - **Preview:** https://main--edsfrescopa--jorgerzt.aem.page/
 - **Live:** https://main--edsfrescopa--jorgerzt.aem.live/. All content pages are published, because the query index (search and sitemaps) only contains published pages. Crawlers are still kept out: EDS always serves `Disallow: /` as `robots.txt` on `*.aem.page` and `*.aem.live`.
+- **Bootcamp (ES):** [docs/bootcamp.md](docs/bootcamp.md) — cómo se montó esta copia, bloques custom, panel de integraciones por entorno, Panel QA, publicación programada, configuración fuera de Git, preguntas y lecciones aprendidas.
 
 ## Differences from the source site
 
