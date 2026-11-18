@@ -24,7 +24,7 @@ const ENV_LABELS = { draft: 'Borrador', preview: 'Preview', live: 'Live' };
 let ctx;
 let token;
 const state = {
-  saved: {}, draft: {}, preview: null, live: null, busy: false, message: null,
+  saved: {}, draft: {}, preview: null, live: null, busy: false, message: null, draftError: null,
 };
 
 function el(tag, attrs = {}, ...children) {
@@ -271,7 +271,7 @@ async function promoteToLive() {
 
 function render() {
   const app = document.getElementById('app');
-  const canPreview = !state.busy && pendingPreview();
+  const canPreview = !state.busy && !state.draftError && pendingPreview();
   const canLive = !state.busy && !pendingPreview() && pendingLive();
 
   app.replaceChildren(
@@ -319,14 +319,17 @@ async function reload(clearMessage = true) {
   if (clearMessage) state.message = null;
   state.busy = true;
   render();
-  try {
-    const [saved, preview, live] = await Promise.all([readDraft(), readEnv('preview'), readEnv('live')]);
-    state.saved = saved;
-    state.draft = { ...saved };
-    state.preview = preview;
-    state.live = live;
-  } catch (error) {
-    state.message = { type: 'error', text: error.message };
+  const [saved, preview, live] = await Promise.allSettled([readDraft(), readEnv('preview'), readEnv('live')]);
+  state.preview = preview.value ?? { error: 'no se pudo leer' };
+  state.live = live.value ?? { error: 'no se pudo leer' };
+  if (saved.status === 'fulfilled') {
+    state.draftError = null;
+    state.saved = saved.value;
+    state.draft = { ...saved.value };
+  } else {
+    // Sin borrador no se escribe nada: se sobrescribiría la hoja con valores por defecto
+    state.draftError = saved.reason.message;
+    state.message = { type: 'error', text: `${saved.reason.message} No se puede editar hasta recargar con éxito.` };
   }
   state.busy = false;
   render();
