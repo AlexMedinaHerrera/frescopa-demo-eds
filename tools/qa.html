@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <title>Panel QA</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="icon" href="data:,">
+    <script src="/tools/qa/qa.js" type="module"></script>
+    <link rel="stylesheet" href="https://use.typekit.net/hah7vzn.css">
+    <link rel="stylesheet" href="/tools/qa/qa.css">
+  </head>
+  <body>
+    <header class="qa-header">
+      <h1>Panel QA</h1>
+      <p>Comprueba enlaces e imágenes rotas en las páginas de <strong class="qa-origin"></strong>.</p>
+    </header>
+
+    <main class="qa-main">
+      <form class="qa-form">
+        <label for="qa-paths">Rutas a revisar <span class="qa-hint">(una por línea; vale la ruta o la URL completa)</span></label>
+        <textarea id="qa-paths" name="paths" rows="6" spellcheck="false" placeholder="/&#10;/coffee&#10;/es/coffee"></textarea>
+
+        <fieldset class="qa-options">
+          <legend>Opciones</legend>
+          <label><input type="checkbox" name="fragments" checked> Incluir nav y footer</label>
+          <label><input type="checkbox" name="external" checked> Comprobar enlaces externos</label>
+        </fieldset>
+
+        <div class="qa-actions">
+          <button type="submit" class="qa-run">Ejecutar QA</button>
+          <button type="button" class="qa-export" disabled>Exportar CSV</button>
+          <button type="button" class="qa-share">Copiar enlace</button>
+        </div>
+      </form>
+
+      <section class="qa-status" aria-live="polite" hidden>
+        <progress class="qa-progress" value="0" max="1"></progress>
+        <p class="qa-progress-text"></p>
+      </section>
+
+      <section class="qa-summary" hidden></section>
+
+      <section class="qa-results" hidden>
+        <div class="qa-results-head">
+          <h2>Resultados</h2>
+          <label><input type="checkbox" class="qa-only-issues" checked> Solo problemas</label>
+        </div>
+        <div class="qa-pages"></div>
+      </section>
+    </main>
+  </body>
+</html>
