@@ -1,0 +1,145 @@
+.timeline {
+  --timeline-line: rgb(88 24 29 / 20%);
+  --timeline-gutter: 3.2rem;
+
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.timeline .timeline-list {
+  position: relative;
+  margin: 0;
+  padding: 0 0 0 var(--timeline-gutter);
+  list-style: none;
+}
+
+/* línea vertical */
+.timeline .timeline-list::before {
+  content: "";
+  position: absolute;
+  top: 0.8rem;
+  bottom: 0.8rem;
+  left: 0.9rem;
+  width: 2px;
+  background-color: var(--timeline-line);
+}
+
+.timeline .timeline-item {
+  position: relative;
+  padding-bottom: 3.2rem;
+}
+
+.timeline .timeline-item:last-child {
+  padding-bottom: 0;
+}
+
+.timeline .timeline-marker {
+  position: absolute;
+  top: 0.4rem;
+  left: calc(-1 * var(--timeline-gutter));
+  box-sizing: border-box;
+  width: 2rem;
+  height: 2rem;
+  border: 3px solid var(--frescopa-color-primary);
+  border-radius: 50%;
+  background-color: var(--background-color);
+}
+
+.timeline .is-done .timeline-marker {
+  border-color: var(--frescopa-color-primary);
+  background-color: var(--frescopa-color-primary);
+}
+
+.timeline .is-current .timeline-marker {
+  border-color: var(--frescopa-color-brand);
+  background-color: var(--frescopa-color-brand);
+  box-shadow: 0 0 0 0.6rem rgb(163 53 50 / 20%);
+}
+
+.timeline .is-pending .timeline-marker {
+  border-color: var(--color-neutral-500);
+}
+
+.timeline .timeline-when {
+  margin: 0 0 0.4rem;
+  color: var(--frescopa-color-secondary);
+  font: 400 1.4rem/2rem var(--type-condensed-font-family);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.timeline .timeline-content > :first-child,
+.timeline .timeline-status + * {
+  margin-top: 0;
+}
+
+.timeline .timeline-content > :last-child {
+  margin-bottom: 0;
+}
+
+.timeline .timeline-content h2,
+.timeline .timeline-content h3,
+.timeline .timeline-content h4 {
+  margin-bottom: 0.8rem;
+}
+
+.timeline .timeline-status {
+  display: inline-block;
+  margin-bottom: 0.8rem;
+  padding: 0.2rem 1rem;
+  border-radius: 999px;
+  background-color: var(--color-neutral-300);
+  color: var(--color-neutral-800);
+  font-size: 1.2rem;
+  line-height: 2rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.timeline .is-done .timeline-status {
+  background-color: rgb(0 100 125 / 12%);
+  color: var(--frescopa-color-primary);
+}
+
+.timeline .is-current .timeline-status {
+  background-color: rgb(163 53 50 / 12%);
+  color: var(--frescopa-color-brand);
+}
+
+.timeline .is-pending .timeline-content {
+  opacity: 0.75;
+}
+
+@media (width >= 900px) {
+  .timeline {
+    --timeline-gutter: 4rem;
+  }
+
+  .timeline .timeline-item {
+    display: grid;
+    grid-template-columns: 16rem 1fr;
+    column-gap: 3.2rem;
+  }
+
+  .timeline .timeline-when {
+    margin: 0.2rem 0 0;
+    text-align: right;
+  }
+
+  .timeline .timeline-content {
+    grid-column: 2;
+  }
+
+  /* con columna "cuándo", la línea y los marcadores van entre ambas columnas */
+  .timeline .timeline-list {
+    padding-left: 0;
+  }
+
+  .timeline .timeline-list::before {
+    left: calc(16rem + 1.6rem - 1px);
+  }
+
+  .timeline .timeline-marker {
+    left: calc(16rem + 1.6rem - 1rem);
+  }
+}
