@@ -409,11 +409,16 @@ async function runApply() {
 const stripFile = ({ file, ...rest }) => rest;
 
 async function submitRequest(form) {
+  if (S.busy) return;
   const me = actor();
   const role = form.get('role');
-  const write = uniquePaths(form.getAll('write'));
+  if (!ROLES[role]) { toast('error', 'Elige el rol que necesitas.'); return; }
+  const paths = pickedPaths(form, 'paths');
   const reason = String(form.get('reason') || '').trim();
+  if (!paths.length) { toast('error', 'Marca o escribe al menos una ruta.'); return; }
   if (!reason) { toast('error', 'Explica el motivo de la solicitud.'); return; }
+  const write = role === 'reader' ? [] : paths;
+  const read = role === 'reader' ? paths : [];
   const id = `req-${Date.now().toString(36)}`;
   const row = {
     id,
@@ -423,7 +428,7 @@ async function submitRequest(form) {
     currentRole: me?.role || '',
     role,
     write: write.join(', '),
-    read: '/',
+    read: read.join(', '),
     reason,
     status: 'pendiente',
     reviewer: '',
@@ -462,13 +467,14 @@ async function reviewRequest(req, status, note = '') {
 function approveAndStage(req) {
   const current = byEmail(S.draft, req.email);
   const write = splitList(req.write);
+  const read = splitList(req.read);
   upsertDraft({
     ...(current || {}),
     email: req.email,
     name: current?.name || req.name,
     role: current?.protected ? current.role : req.role,
     write: [...(current?.write || []), ...write],
-    read: [...(current?.read || []), ...splitList(req.read || '/')],
+    read: [...(current?.read || []), ...read],
     status: 'activo',
   });
   S.pendingRequest = req.id;
@@ -851,7 +857,7 @@ function requestCard(r) {
       el('div', { class: 'gv-user' }, avatar({ name: r.name, email: r.email, role: r.role }), el('div', {}, el('strong', {}, r.name || r.email), el('span', { class: 'gv-sub' }, r.email))),
       el('span', { class: `gv-pill gv-pill-${r.status}` }, r.status),
     ),
-    el('p', { class: 'gv-req-what' }, r.currentRole && r.currentRole !== r.role ? [roleBadge(r.currentRole), ' → '] : null, roleBadge(r.role), ' ', splitList(r.write).map((p) => pathChip(p))),
+    el('p', { class: 'gv-req-what' }, r.currentRole && r.currentRole !== r.role ? [roleBadge(r.currentRole), ' → '] : null, roleBadge(r.role), ' ', splitList(r.write).map((p) => pathChip(p)), splitList(r.read).map((p) => pathChip(p, 'read'))),
     el('blockquote', {}, r.reason),
     el('p', { class: 'gv-muted' }, `Enviada ${fmtDate(r.created)}`, r.reviewer ? ` · revisada por ${nameOf(r.reviewer)} ${fmtDate(r.reviewed)}` : '', r.note ? ` · “${r.note}”` : ''),
     open ? el(
@@ -1046,13 +1052,18 @@ function viewMe() {
 
 /* ---------- Modales ---------- */
 
+/** Rutas marcadas + las escritas en "Otra ruta" (separadas por comas), normalizadas */
+function pickedPaths(form, name) {
+  return uniquePaths([...form.getAll(name), ...splitList(form.get(`${name}-extra`))]);
+}
+
 function pathPicker(name, selected, level) {
   const options = uniquePaths([...S.paths, ...selected]);
   const box = el('div', { class: 'gv-picker', role: 'group' }, options.map((p) => el('label', { class: `gv-pick gv-path-${level}` }, el('input', {
     type: 'checkbox', name, value: p, checked: selected.includes(p),
   }), p)));
   const extra = el('input', {
-    type: 'text', placeholder: 'Otra ruta: /es/campanas', 'aria-label': `Añadir ruta (${name})`, class: 'gv-picker-add',
+    type: 'text', name: `${name}-extra`, placeholder: 'Otra ruta: /es/campanas (Enter para añadir)', 'aria-label': `Añadir ruta (${name})`, class: 'gv-picker-add',
   });
   extra.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
@@ -1088,8 +1099,8 @@ function userModal() {
           email,
           name: f.get('name'),
           role,
-          write: role === 'admin' ? ['/'] : f.getAll('write'),
-          read: role === 'admin' || !f.getAll('read').length ? ['/'] : f.getAll('read'),
+          write: role === 'admin' ? ['/'] : pickedPaths(f, 'write'),
+          read: role === 'admin' ? ['/'] : pickedPaths(f, 'read'),
           notes: f.get('notes'),
         });
         S.modal = null;
@@ -1105,7 +1116,7 @@ function userModal() {
     el('label', {}, 'Rutas con escritura (edita; preview/publicar según rol)'),
     pathPicker('write', u.write, 'write'),
     el('label', {}, 'Rutas con lectura'),
-    pathPicker('read', u.read.length ? u.read : ['/'], 'read'),
+    pathPicker('read', u.read, 'read'),
     el('label', { for: 'u-notes' }, 'Notas'),
     el('input', {
       id: 'u-notes', name: 'notes', value: u.notes, placeholder: 'Agencia, campaña, fecha de fin…',
@@ -1123,8 +1134,8 @@ function requestModal() {
     el('fieldset', { class: 'gv-roles-pick' }, el('legend', {}, 'Rol que necesitas'), Object.entries(ROLES).filter(([id]) => id !== 'admin').map(([id, r]) => el('label', { class: `gv-role-card gv-role-card-${id}` }, el('input', {
       type: 'radio', name: 'role', value: id, checked: (me?.role || 'editor') === id,
     }), el('strong', {}, r.label), el('span', {}, r.description)))),
-    el('label', {}, 'Rutas donde necesitas escribir'),
-    pathPicker('write', [], 'write'),
+    el('label', {}, 'Rutas que necesitas (escritura; si pides Lector, lectura)'),
+    pathPicker('paths', [], 'write'),
     el('label', { for: 'r-reason' }, 'Motivo'),
     el('textarea', {
       id: 'r-reason', name: 'reason', rows: 3, required: true, placeholder: 'Campaña de primavera en /fr hasta el 30 de abril…',
@@ -1166,15 +1177,17 @@ function closeModal() {
 
 function renderModal() {
   if (!S.modal) return null;
+  if (S.modal.node) return S.modal.node;
   const views = { user: userModal, request: requestModal, confirm: confirmModal };
   const [title, body] = views[S.modal.type]();
-  return el(
+  S.modal.node = el(
     'div',
     { class: 'gv-backdrop', onclick: (e) => { if (e.target === e.currentTarget) closeModal(); } },
     el('div', {
       class: 'gv-modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': title,
     }, el('header', {}, el('h2', {}, title), el('button', { class: 'gv-btn gv-btn-ghost gv-icon-btn', 'aria-label': 'Cerrar', onclick: closeModal }, icon('x'))), body),
   );
+  return S.modal.node;
 }
 
 /* ---------- Onboarding ---------- */
