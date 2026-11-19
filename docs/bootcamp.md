@@ -10,6 +10,7 @@ Guía de lo que se ha montado sobre la plantilla `JorgeRZT/edsfrescopa` durante 
 | Live | https://main--frescopa-demo-eds--alexmedinaherrera.aem.live/ |
 | Panel de integraciones | https://da.live/app/alexmedinaherrera/frescopa-demo-eds/tools/integrations |
 | Panel QA | https://da.live/app/alexmedinaherrera/frescopa-demo-eds/tools/qa |
+| Gobierno y accesos | https://da.live/app/alexmedinaherrera/frescopa-demo-eds/tools/governance ([docs](governance.md)) |
 | Publicaciones programadas | https://da.live/apps/scheduler |
 
 ---
@@ -130,6 +131,7 @@ Git solo guarda el código. Esto se ha configurado directamente en da.live o en 
 | Docs de la Library | `/docs/library/blocks/{profile,stats,timeline}` | Plantilla del bloque + `fields` |
 | Hojas de integraciones | `/config/integrations/{gigya,salesforce,badge}`, en preview y live | Columnas `develop \| stage \| main` |
 | Cabecera CORS | Admin API: `config/alexmedinaherrera/sites/frescopa-demo-eds/headers.json` | `access-control-allow-origin: *` para `/config/integrations/**` |
+| Modelo de gobierno | `/governance/` en da.live + hoja `permissions` de la org + roles del sitio | Usuarios, solicitudes, auditoría; ver [governance.md](governance.md) |
 | Scheduler | Servicio de Adobe | Sitio registrado |
 | Ramas de entorno | GitHub | `main`, `develop`, `stage` (y `panel-qa`, ya integrada en `main`) |
 
@@ -170,7 +172,7 @@ Sí, y lo aplica la plataforma:
 - *Dónde se carga:* reglas de rutas en el panel.
 - *Quién ve la preview:* `access.preview.allow` en la config del sitio (implica adaptar el panel, que hoy lee la preview sin sesión).
 
-Los roles y los permisos de da.live **no están configurados todavía**: solo hay un usuario.
+La app **Gobierno y accesos** ([governance.md](governance.md)) gestiona roles y rutas por usuario y los aplica en la plataforma.
 
 **¿Hay publicación programada de serie?**
 Sí (sección 2.5). Un plugin propio solo tendría sentido para huecos: aprobaciones, calendario editorial multisitio, disparadores externos (Admin API desde una GitHub Action).
@@ -187,7 +189,7 @@ Ese menú solo muestra lo que está en la hoja `library` de la config del sitio.
 
 - [ ] La página `/formacion/alex-medina` usa una tabla `highlight` que **no existe como bloque** (da un 404 al cargar su JS). Sustituirla por *Section Metadata* con `Style: highlight`.
 - [ ] El bloque `profile` de esa página tiene textos de ejemplo.
-- [ ] Configurar roles del sitio (`author` / `publish`) y permisos de da.live por integración, con los emails o grupos reales. Incluir siempre primero una regla que mantenga al administrador.
+- [ ] Inicializar la app de gobierno, dar de alta la cuenta de prueba y aplicar (ver [governance.md](governance.md#prueba-con-dos-cuentas)). Más adelante, pasar a grupos de Admin Console.
 - [ ] Decidir si se protege la preview (`access.preview.allow`) y adaptar el panel para leerla con sesión.
 - [ ] Confirmar en qué zona horaria trabaja el diálogo *Schedule publish*.
 - [ ] Borrar `/formacion/prueba-programada` si no se quiere en el sitio público.

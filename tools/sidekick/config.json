@@ -11,6 +11,12 @@
       "passReferrer": true,
       "isPalette": true,
       "paletteRect": "top: 60px; right: 20px; bottom: 20px; left: auto; width: min(760px, calc(100vw - 40px)); height: calc(100vh - 80px);"
+    },
+    {
+      "id": "governance",
+      "title": "Accesos",
+      "environments": ["dev", "preview", "live", "edit"],
+      "url": "https://da.live/app/alexmedinaherrera/frescopa-demo-eds/tools/governance"
     }
   ]
 }
