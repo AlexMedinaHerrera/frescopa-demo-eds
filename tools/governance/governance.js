@@ -21,7 +21,8 @@ import {
   accessLevel, buildDaRows, buildEdsRoles, cleanUser, describeChange, externalUsers,
   diffRoles, diffRows,
   diffUsers, edsAllows, edsRoleOf, evaluateDaRows, evaluateModel, foreignSiteRows, isActive,
-  isAdmin, isManagedRow, mergeDaRows, normalizePath, sheetRows, splitList, toRow, toSheet,
+  isAdmin, isManagedRow, mergeDaRows, projectRequest, requestImpact, normalizePath, sheetRows,
+  splitList, toRow, toSheet,
   uniquePaths,
 } from './model.js';
 
@@ -465,18 +466,7 @@ async function reviewRequest(req, status, note = '') {
 }
 
 function approveAndStage(req) {
-  const current = byEmail(S.draft, req.email);
-  const write = splitList(req.write);
-  const read = splitList(req.read);
-  upsertDraft({
-    ...(current || {}),
-    email: req.email,
-    name: current?.name || req.name,
-    role: current?.protected ? current.role : req.role,
-    write: [...(current?.write || []), ...write],
-    read: [...(current?.read || []), ...read],
-    status: 'activo',
-  });
+  upsertDraft(projectRequest(byEmail(S.draft, req.email), req));
   S.pendingRequest = req.id;
   S.tab = 'apply';
   toast('ok', 'Solicitud incorporada al modelo. Revisa el diff y aplica.');
@@ -845,9 +835,113 @@ function viewSimulator() {
   );
 }
 
-function requestCard(r) {
+const ACTION_LABEL = Object.fromEntries(ACTIONS.map((a) => [a.id, a.label]));
+
+const IMPACT_STATES = {
+  keep: ['✓', 'Ya lo tiene'],
+  gain: ['+', 'Lo gana'],
+  lose: ['−', 'Lo pierde'],
+  no: ['·', 'Sin acceso'],
+};
+
+function impactMark(a) {
+  let state = 'no';
+  if (a.before && a.after) state = 'keep';
+  else if (a.after) state = 'gain';
+  else if (a.before) state = 'lose';
+  const [symbol, text] = IMPACT_STATES[state];
+  return el('span', { class: `gv-imp gv-imp-${state}`, title: text, 'aria-label': text }, symbol);
+}
+
+function roleChange(from, to, isNew) {
+  if (isNew) return [el('span', { class: 'gv-pill gv-pill-preaprobada' }, 'Alta nueva'), ' ', roleBadge(to)];
+  if (from === to) return [roleBadge(to), el('span', { class: 'gv-muted' }, ' sin cambio de rol')];
+  return [roleBadge(from), el('span', { class: 'gv-arrow' }, '→'), roleBadge(to)];
+}
+
+function edsChange(from, to) {
+  const note = el('small', { class: 'gv-muted' }, ' (todo el sitio)');
+  if (from === to) return [el('code', {}, to || 'ninguno'), note];
+  return [el('code', {}, from || 'ninguno'), el('span', { class: 'gv-arrow' }, '→'), el('code', { class: 'gv-gain' }, to || 'ninguno'), note];
+}
+
+/** Antes / después de aprobar la solicitud, con lo que gana y lo que pierde por ruta */
+function impactView(r) {
+  const before = byEmail(S.draft, r.email);
+  const after = projectRequest(before, r);
+  const requested = [...splitList(r.write), ...splitList(r.read)];
+  const own = before ? [...before.write, ...before.read] : [];
+  const candidates = [...S.paths, ...requested, ...own];
+  const imp = requestImpact(isActive(before) ? before : null, after, candidates, requested);
+  const sideEffects = imp.rows
+    .filter((row) => !row.requested)
+    .flatMap((row) => row.actions.filter((a) => a.after && !a.before));
+  return el(
+    'div',
+    { class: 'gv-impact' },
+    el(
+      'dl',
+      { class: 'gv-req-dl' },
+      el('dt', {}, 'Rol'),
+      el('dd', {}, roleChange(imp.roleBefore, imp.roleAfter, imp.isNew)),
+      el('dt', {}, 'Rol EDS'),
+      el('dd', {}, edsChange(imp.edsBefore, imp.edsAfter)),
+    ),
+    imp.rows.length ? el(
+      'div',
+      { class: 'gv-table-wrap' },
+      el(
+        'table',
+        { class: 'gv-table gv-impact-table' },
+        el('thead', {}, el('tr', {}, el('th', { scope: 'col' }, 'Ruta'), ['read', 'edit', 'preview', 'publish'].map((id) => el('th', { scope: 'col' }, ACTION_LABEL[id])))),
+        el('tbody', {}, imp.rows.map((row) => el(
+          'tr',
+          { class: row.requested ? 'is-requested' : 'is-side' },
+          el('th', { scope: 'row' }, el('code', {}, row.path), row.requested ? el('span', { class: 'gv-tag' }, 'pedida') : el('span', { class: 'gv-tag gv-tag-warn' }, 'efecto colateral')),
+          row.actions.map((a) => el('td', {}, impactMark(a))),
+        ))),
+      ),
+    ) : el('p', { class: 'gv-muted' }, 'No cambia ningún permiso: ya tiene todo lo que pide.'),
+    imp.globals.length ? el('p', { class: 'gv-globals-change' }, 'Además: ', imp.globals.map((g) => el('span', { class: `gv-pill ${g.after ? 'gv-pill-aplicada' : 'gv-pill-rechazada'}` }, `${g.after ? '+' : '−'} ${ACTION_LABEL[g.id]}`))) : null,
+    sideEffects.length ? el('p', { class: 'gv-callout gv-callout-warn' }, icon('alert'), `Al cambiar de rol también gana ${sideEffects.length} permiso(s) en rutas que no ha pedido. Si no es lo que quieres, edita la solicitud y mantén su rol.`) : null,
+    el(
+      'p',
+      { class: 'gv-legend gv-legend-sm' },
+      Object.keys(IMPACT_STATES).map((k) => el('span', {}, impactMark({ before: k === 'keep' || k === 'lose', after: k === 'keep' || k === 'gain' }), IMPACT_STATES[k][1].toLowerCase())),
+    ),
+  );
+}
+
+const isOpen = (r) => ['pendiente', 'preaprobada'].includes(r.status);
+const canEditRequest = (r) => isOpen(r) && !S.viewAs
+  && (canReview() || (r.email === S.me.email && r.status === 'pendiente'));
+
+function pathList(list, level) {
+  const paths = splitList(list);
+  return paths.length ? paths.map((p) => pathChip(p, level)) : el('span', { class: 'gv-muted' }, '—');
+}
+
+function rejectRequest(r) {
+  // eslint-disable-next-line no-alert
+  const note = window.prompt('Motivo del rechazo (queda en la auditoría):', '');
+  if (note !== null) reviewRequest(r, 'rechazada', note);
+}
+
+function requestActions(r) {
   const mine = r.email === S.me.email;
-  const open = ['pendiente', 'preaprobada'].includes(r.status);
+  if (!isOpen(r)) return null;
+  return el(
+    'div',
+    { class: 'gv-req-actions' },
+    canEditRequest(r) ? el('button', { class: 'gv-btn gv-btn-ghost', disabled: S.busy, onclick: () => { S.modal = { type: 'reqEdit', req: r }; render(); } }, icon('list'), canReview() ? 'Revisar y editar' : 'Editar mi solicitud') : null,
+    amAdmin() ? el('button', { class: 'gv-btn gv-btn-primary', disabled: S.busy, onclick: () => approveAndStage(r) }, icon('check'), 'Aprobar y aplicar') : null,
+    canReview() && !amAdmin() && r.status === 'pendiente' && !mine ? el('button', { class: 'gv-btn gv-btn-primary', disabled: S.busy, onclick: () => reviewRequest(r, 'preaprobada') }, icon('check'), 'Preaprobar') : null,
+    canReview() && !mine ? el('button', { class: 'gv-btn gv-btn-ghost', disabled: S.busy, onclick: () => rejectRequest(r) }, 'Rechazar') : null,
+    mine ? el('button', { class: 'gv-btn gv-btn-ghost', disabled: S.busy, onclick: () => reviewRequest(r, 'cancelada') }, 'Cancelar') : null,
+  );
+}
+
+function requestCard(r) {
   return el(
     'article',
     { class: `gv-req gv-req-${r.status}` },
@@ -855,28 +949,137 @@ function requestCard(r) {
       'header',
       {},
       el('div', { class: 'gv-user' }, avatar({ name: r.name, email: r.email, role: r.role }), el('div', {}, el('strong', {}, r.name || r.email), el('span', { class: 'gv-sub' }, r.email))),
-      el('span', { class: `gv-pill gv-pill-${r.status}` }, r.status),
+      el('div', { class: 'gv-req-meta' }, el('span', { class: `gv-pill gv-pill-${r.status}` }, r.status), el('span', { class: 'gv-muted' }, r.id)),
     ),
-    el('p', { class: 'gv-req-what' }, r.currentRole && r.currentRole !== r.role ? [roleBadge(r.currentRole), ' → '] : null, roleBadge(r.role), ' ', splitList(r.write).map((p) => pathChip(p)), splitList(r.read).map((p) => pathChip(p, 'read'))),
-    el('blockquote', {}, r.reason),
-    el('p', { class: 'gv-muted' }, `Enviada ${fmtDate(r.created)}`, r.reviewer ? ` · revisada por ${nameOf(r.reviewer)} ${fmtDate(r.reviewed)}` : '', r.note ? ` · “${r.note}”` : ''),
-    open ? el(
+    el(
       'div',
-      { class: 'gv-req-actions' },
-      amAdmin() ? el('button', { class: 'gv-btn gv-btn-primary', disabled: S.busy, onclick: () => approveAndStage(r) }, icon('check'), 'Aprobar y aplicar') : null,
-      canReview() && !amAdmin() && r.status === 'pendiente' && !mine ? el('button', { class: 'gv-btn gv-btn-primary', disabled: S.busy, onclick: () => reviewRequest(r, 'preaprobada') }, icon('check'), 'Preaprobar') : null,
-      canReview() && !mine ? el('button', {
-        class: 'gv-btn gv-btn-ghost',
-        disabled: S.busy,
-        onclick: () => {
-          // eslint-disable-next-line no-alert
-          const note = window.prompt('Motivo del rechazo (queda en la auditoría):', '');
-          if (note !== null) reviewRequest(r, 'rechazada', note);
-        },
-      }, 'Rechazar') : null,
-      mine ? el('button', { class: 'gv-btn gv-btn-ghost', disabled: S.busy, onclick: () => reviewRequest(r, 'cancelada') }, 'Cancelar') : null,
-    ) : null,
+      { class: 'gv-req-body' },
+      el(
+        'section',
+        {},
+        el('h4', {}, 'Qué pide'),
+        el(
+          'dl',
+          { class: 'gv-req-dl' },
+          el('dt', {}, 'Rol pedido'),
+          el('dd', {}, roleBadge(r.role)),
+          el('dt', {}, 'Escritura'),
+          el('dd', {}, pathList(r.write, 'write')),
+          el('dt', {}, 'Lectura'),
+          el('dd', {}, pathList(r.read, 'read')),
+        ),
+        el('blockquote', {}, r.reason || '—'),
+        el(
+          'ul',
+          { class: 'gv-req-trail' },
+          el('li', {}, `Enviada por ${nameOf(r.email)} · ${fmtDate(r.created)}`),
+          r.edited ? el('li', {}, `Editada por ${nameOf(r.editedBy)} · ${fmtDate(r.edited)}`, r.changes ? el('small', {}, ` (${r.changes})`) : null) : null,
+          r.reviewer ? el('li', {}, `${r.status === 'rechazada' ? 'Rechazada' : 'Revisada'} por ${nameOf(r.reviewer)} · ${fmtDate(r.reviewed)}`) : null,
+          r.note ? el('li', {}, `Nota: “${r.note}”`) : null,
+        ),
+      ),
+      el('section', {}, el('h4', {}, isOpen(r) ? 'Impacto si se aprueba' : 'Impacto (con el modelo actual)'), impactView(r)),
+    ),
+    requestActions(r),
   );
+}
+
+function describeRequestEdit(before, after) {
+  const parts = [];
+  if (before.role !== after.role) parts.push(`rol ${ROLES[before.role]?.short || before.role} → ${ROLES[after.role]?.short}`);
+  ['write', 'read'].forEach((k) => {
+    const a = splitList(before[k]).join(', ');
+    const b = splitList(after[k]).join(', ');
+    if (a !== b) parts.push(`${k === 'write' ? 'escritura' : 'lectura'} ${a || '—'} → ${b || '—'}`);
+  });
+  return parts.join('; ');
+}
+
+async function saveRequestEdit(req, v, thenApprove) {
+  if (S.busy) return;
+  if (!ROLES[v.role] || v.role === 'admin') { toast('error', 'Elige un rol válido.'); return; }
+  if (!v.write.length && !v.read.length) { toast('error', 'La solicitud necesita al menos una ruta.'); return; }
+  const updated = {
+    ...stripFile(req), role: v.role, write: v.write.join(', '), read: v.read.join(', '),
+  };
+  const changes = describeRequestEdit(req, updated);
+  if (!changes && !v.note && !thenApprove) { closeModal(); return; }
+  S.busy = true;
+  render();
+  try {
+    if (changes || v.note) {
+      Object.assign(updated, { edited: now(), editedBy: S.me.email, changes: changes || req.changes || '' });
+      if (v.note) updated.note = v.note;
+      await writeSheet(req.file, [updated]);
+      await appendAudit([auditEntry('solicitud-editada', req.email, `${req.id}: ${changes || 'nota'}${v.note ? ` · ${v.note}` : ''}`)]);
+    }
+    S.modal = null;
+    S.busy = false;
+    await reload(true);
+    const fresh = S.requests.find((r) => r.id === req.id) || { ...updated, file: req.file };
+    if (thenApprove) approveAndStage(fresh);
+    else toast('ok', 'Solicitud actualizada.');
+  } catch (e) {
+    S.busy = false;
+    toast('error', e.message);
+  }
+}
+
+function requestEditModal() {
+  const r = S.modal.req;
+  const impactBox = el('div', { class: 'gv-req-impact' });
+  const values = (form) => {
+    const f = new FormData(form);
+    return {
+      role: f.get('role'), write: pickedPaths(f, 'write'), read: pickedPaths(f, 'read'), note: String(f.get('note') || '').trim(),
+    };
+  };
+  const refresh = (form) => {
+    const v = values(form);
+    impactBox.replaceChildren(el('h4', {}, 'Impacto si se aprueba así'), impactView({
+      ...r, role: v.role, write: v.write.join(', '), read: v.read.join(', '),
+    }));
+  };
+  const roles = Object.entries(ROLES).filter(([id]) => id !== 'admin');
+  const form = el(
+    'form',
+    {
+      class: 'gv-form gv-req-edit',
+      onchange: (e) => refresh(e.currentTarget),
+      onsubmit: (e) => { e.preventDefault(); saveRequestEdit(r, values(e.target), e.submitter?.value === 'approve'); },
+    },
+    el(
+      'div',
+      { class: 'gv-req-edit-grid' },
+      el(
+        'div',
+        { class: 'gv-form' },
+        el('p', { class: 'gv-muted' }, `${r.name || r.email} · enviada ${fmtDate(r.created)}`),
+        el('blockquote', { class: 'gv-req-quote' }, r.reason || '—'),
+        el('fieldset', { class: 'gv-roles-pick gv-roles-compact' }, el('legend', {}, 'Rol'), roles.map(([id, role]) => el('label', { class: `gv-role-card gv-role-card-${id}` }, el('input', {
+          type: 'radio', name: 'role', value: id, checked: r.role === id,
+        }), el('strong', {}, role.label), el('small', {}, `EDS: ${role.eds || 'ninguno (author si escribe)'}`)))),
+        el('label', {}, 'Escritura'),
+        pathPicker('write', splitList(r.write).map(normalizePath), 'write'),
+        el('label', {}, 'Lectura'),
+        pathPicker('read', splitList(r.read).map(normalizePath), 'read'),
+        canReview() ? el('label', { for: 'rq-note' }, 'Nota para el solicitante (queda en la auditoría)') : null,
+        canReview() ? el('input', {
+          id: 'rq-note', name: 'note', value: '', placeholder: 'Te doy /fr hasta el 10 de enero; /jp no…',
+        }) : null,
+      ),
+      impactBox,
+    ),
+    el(
+      'div',
+      { class: 'gv-modal-actions' },
+      el('button', { type: 'button', class: 'gv-btn gv-btn-ghost', onclick: closeModal }, 'Cancelar'),
+      el('button', { type: 'submit', value: 'save', class: `gv-btn ${amAdmin() ? 'gv-btn-ghost' : 'gv-btn-primary'}` }, 'Guardar cambios'),
+      amAdmin() ? el('button', { type: 'submit', value: 'approve', class: 'gv-btn gv-btn-primary' }, icon('check'), 'Guardar y aprobar') : null,
+    ),
+  );
+  refresh(form);
+  return [`Revisar solicitud de ${r.name || r.email}`, form];
 }
 
 function viewRequests() {
@@ -1074,6 +1277,7 @@ function pathPicker(name, selected, level) {
       type: 'checkbox', name, value: p, checked: true,
     }), p));
     extra.value = '';
+    extra.dispatchEvent(new Event('change', { bubbles: true }));
   });
   return el('div', {}, box, extra);
 }
@@ -1178,7 +1382,9 @@ function closeModal() {
 function renderModal() {
   if (!S.modal) return null;
   if (S.modal.node) return S.modal.node;
-  const views = { user: userModal, request: requestModal, confirm: confirmModal };
+  const views = {
+    user: userModal, request: requestModal, confirm: confirmModal, reqEdit: requestEditModal,
+  };
   const [title, body] = views[S.modal.type]();
   S.modal.node = el(
     'div',

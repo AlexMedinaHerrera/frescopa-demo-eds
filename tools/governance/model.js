@@ -459,3 +459,48 @@ export const sheetRows = (json) => (json && Array.isArray(json.data) ? json.data
 export const toSheet = (rows) => ({
   total: rows.length, limit: rows.length, offset: 0, data: rows, ':type': 'sheet',
 });
+
+/* ---------- Solicitudes ---------- */
+
+/** Cómo quedaría el usuario si se aprueba la solicitud (no modifica nada) */
+export function projectRequest(current, req) {
+  return cleanUser({
+    ...(current || {}),
+    email: req.email,
+    name: current?.name || req.name,
+    role: current?.protected ? current.role : (req.role || current?.role),
+    write: [...(current?.write || []), ...splitList(req.write)],
+    read: [...(current?.read || []), ...splitList(req.read)],
+    status: 'activo',
+  });
+}
+
+const IMPACT_ACTIONS = ['read', 'edit', 'preview', 'publish'];
+
+/**
+ * Antes / después por ruta. Solo devuelve las rutas pedidas y las que cambian.
+ * before = null si el usuario aún no está en el modelo (alta nueva).
+ */
+export function requestImpact(before, after, candidatePaths, requestedPaths) {
+  const requested = new Set(requestedPaths.map(normalizePath));
+  const can = (u, id, path) => !!u && evaluateModel(u, id, path).allowed;
+  const rows = uniquePaths([...candidatePaths, ...requested]).map((path) => ({
+    path,
+    requested: requested.has(path),
+    actions: IMPACT_ACTIONS.map((id) => ({
+      id, before: can(before, id, path), after: can(after, id, path),
+    })),
+  })).filter((r) => r.requested || r.actions.some((a) => a.before !== a.after));
+  const globals = ['config', 'approve', 'govern']
+    .map((id) => ({ id, before: can(before, id, '/'), after: can(after, id, '/') }))
+    .filter((a) => a.before !== a.after);
+  return {
+    rows,
+    globals,
+    isNew: !before,
+    roleBefore: before?.role || null,
+    roleAfter: after.role,
+    edsBefore: before ? edsRoleOf(before) : null,
+    edsAfter: edsRoleOf(after),
+  };
+}
