@@ -239,14 +239,19 @@ export function buildDaRows(users, site) {
     .sort((a, b) => a.path.localeCompare(b.path) || a.actions.localeCompare(b.actions));
 }
 
+const rowKey = (r) => `${r.path}|${r.actions}|${splitList(r.groups).map((g) => g.toLowerCase()).sort().join(',')}`;
+
 export const isManagedRow = (row, site) => String(row.comments || '').startsWith(daTag(site));
 
 /** Mantiene intactas las filas de otros sitios o manuales; sustituye las gestionadas */
 export function mergeDaRows(current, generated, site) {
-  return [...(current || []).filter((row) => !isManagedRow(row, site)), ...generated];
+  // Si otra herramienta (p. ej. la pantalla Permissions de da.live) reescribió una fila del
+  // modelo sin la etiqueta, no se duplica: la versión etiquetada la sustituye
+  const wanted = new Set(generated.map(rowKey));
+  const kept = (current || [])
+    .filter((row) => !isManagedRow(row, site) && !wanted.has(rowKey(row)));
+  return [...kept, ...generated];
 }
-
-const rowKey = (r) => `${r.path}|${r.actions}|${splitList(r.groups).map((g) => g.toLowerCase()).sort().join(',')}`;
 
 export function diffRows(before, after) {
   const a = new Map((before || []).map((r) => [rowKey(r), r]));
@@ -261,6 +266,76 @@ export function diffRows(before, after) {
 export function foreignSiteRows(rows, site) {
   return (rows || []).filter((r) => !isManagedRow(r, site)
     && (String(r.path).startsWith(`/${site}/`) || r.path === `/${site}` || r.path === '/+**' || r.path === '/**' || r.path === 'CONFIG'));
+}
+
+/** CONFIG de la org o CONFIG del sitio (/<sitio>/CONFIG, lo que escribe la pantalla Permissions) */
+export const isConfigPath = (p, site) => ['CONFIG', `/${site}/CONFIG`].includes(String(p || '').trim());
+
+/** "/site/es/+**" -> "/es" ; "/site/+**" o "/+**" -> "/" ; otra cosa -> null */
+function rowToPath(rowPath, site) {
+  const p = String(rowPath || '').trim();
+  if (p === '/+**' || p === '/**') return '/';
+  if (p !== `/${site}` && !p.startsWith(`/${site}/`)) return null;
+  return normalizePath(p.slice(site.length + 1) || '/');
+}
+
+/**
+ * Personas con acceso real (reglas DA manuales o roles EDS) que no están en el modelo.
+ * Los grupos IMS (OrgID/GroupID) no son emails y se ignoran.
+ */
+export function externalUsers(users, daRows, edsRole, site) {
+  const known = new Set(users.map((u) => u.email));
+  const found = new Map();
+  const get = (email) => {
+    const key = email.toLowerCase();
+    if (!found.has(key)) {
+      found.set(key, {
+        email: key,
+        sources: new Set(),
+        eds: new Set(),
+        write: new Set(),
+        read: new Set(),
+        config: false,
+      });
+    }
+    return found.get(key);
+  };
+  foreignSiteRows(daRows, site).forEach((row) => {
+    const emails = splitList(row.groups)
+      .filter((g) => EMAIL_RE.test(g) && !known.has(g.toLowerCase()));
+    emails.forEach((g) => {
+      const x = get(g);
+      x.sources.add('DA');
+      if (isConfigPath(row.path, site)) {
+        x.config = x.config || splitList(row.actions).includes('write');
+        return;
+      }
+      const path = rowToPath(row.path, site);
+      if (!path) return;
+      x[splitList(row.actions).includes('write') ? 'write' : 'read'].add(path);
+    });
+  });
+  Object.entries(edsRole || {}).forEach(([role, list]) => (list || []).forEach((email) => {
+    if (!EMAIL_RE.test(email) || known.has(String(email).toLowerCase())) return;
+    const x = get(email);
+    x.sources.add('EDS');
+    x.eds.add(role);
+  }));
+  return [...found.values()].map((x) => {
+    let role = 'reader';
+    if (x.eds.has('admin') || x.config) role = 'admin';
+    else if (x.eds.has('publish')) role = 'publisher';
+    else if (x.eds.has('author') || x.write.size) role = 'editor';
+    const write = [...x.write];
+    return {
+      email: x.email,
+      sources: [...x.sources],
+      eds: [...x.eds],
+      write: role === 'editor' && !write.length ? [] : write,
+      read: x.read.size ? [...x.read] : ['/'],
+      suggestedRole: role,
+    };
+  }).sort((a, b) => a.email.localeCompare(b.email));
 }
 
 function patternMatch(pattern, full) {
@@ -278,9 +353,19 @@ function patternMatch(pattern, full) {
  */
 export function evaluateDaRows(rows, email, site, path) {
   if (!rows) return null;
-  const full = path === 'CONFIG' ? 'CONFIG' : `/${site}${normalizePath(path) === '/' ? '' : normalizePath(path)}`;
   const me = email.toLowerCase();
   const mine = rows.filter((r) => splitList(r.groups).some((g) => g.toLowerCase() === me));
+  if (path === 'CONFIG') {
+    // La regla del sitio es más específica que la de la org
+    const cfg = mine.filter((r) => String(r.path).trim() === `/${site}/CONFIG`);
+    const best = cfg.length ? cfg : mine.filter((r) => String(r.path).trim() === 'CONFIG');
+    if (!best.length) return { level: 0, rule: null };
+    const acts = best.flatMap((r) => splitList(r.actions));
+    let level = acts.includes('read') ? 1 : 0;
+    if (acts.includes('write')) level = 2;
+    return { level, rule: best[0].path };
+  }
+  const full = `/${site}${normalizePath(path) === '/' ? '' : normalizePath(path)}`;
   const matches = mine.filter((r) => patternMatch(String(r.path).trim(), full));
   if (!matches.length) return { level: 0, rule: null };
   const spec = (r) => String(r.path).replace(/\/\+?\*\*$/, '').length;

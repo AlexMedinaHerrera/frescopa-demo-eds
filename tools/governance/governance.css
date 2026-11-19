@@ -256,6 +256,18 @@ a {
   margin-bottom: 12px;
 }
 
+.gv-card-ext {
+  border-color: var(--warn);
+  box-shadow: inset 4px 0 0 var(--warn), var(--shadow);
+}
+
+.gv-card-ext h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--warn);
+}
+
 .gv-card-flush {
   padding: 0;
   overflow: hidden;
@@ -543,6 +555,7 @@ a {
   letter-spacing: .08em;
   padding: 3px 8px;
   border-radius: 6px;
+  margin-right: 4px;
 }
 
 .gv-layer-da {

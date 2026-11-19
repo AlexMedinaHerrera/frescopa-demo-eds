@@ -18,7 +18,8 @@
 import DA_SDK from 'https://da.live/nx/utils/sdk.js';
 import {
   ACTIONS, AUDIT_SHEET, EDS_ROLES, EMAIL_RE, GOV_FOLDER, REQUESTS_FOLDER, ROLES, USERS_SHEET,
-  accessLevel, buildDaRows, buildEdsRoles, cleanUser, describeChange, diffRoles, diffRows,
+  accessLevel, buildDaRows, buildEdsRoles, cleanUser, describeChange, externalUsers,
+  diffRoles, diffRows,
   diffUsers, edsAllows, edsRoleOf, evaluateDaRows, evaluateModel, foreignSiteRows, isActive,
   isAdmin, isManagedRow, mergeDaRows, normalizePath, sheetRows, splitList, toRow, toSheet,
   uniquePaths,
@@ -516,6 +517,7 @@ function viewOverview() {
   const pendingReqs = S.requests.filter((r) => ['pendiente', 'preaprobada'].includes(r.status));
   const protectedAdmin = S.draft.find((u) => u.protected && isActive(u));
   const foreign = foreignSiteRows(S.da.rows, site());
+  const external = externalUsers(S.draft, S.da.rows, S.eds.role, site());
   const hasRoles = !!(S.eds.role && Object.keys(S.eds.role).length);
   let edsText = hasRoles ? 'Roles del sitio configurados' : 'Sin roles en el sitio: cualquiera con acceso puede publicar';
   if (S.eds.error) edsText = `Roles EDS: ${S.eds.error}`;
@@ -525,6 +527,7 @@ function viewOverview() {
     { ok: hasRoles, warn: true, text: edsText },
     { ok: p.total === 0, warn: true, text: p.total ? `${p.total} cambio(s) entre el modelo y la plataforma` : 'Plataforma sincronizada con el modelo' },
     { ok: !foreign.length, warn: true, text: foreign.length ? `${foreign.length} regla(s) manuales fuera del modelo afectan al sitio` : 'Sin reglas manuales fuera del modelo' },
+    { ok: !external.length, warn: true, text: external.length ? `${external.length} persona(s) con acceso real fuera del modelo: ${external.map((x) => x.email).join(', ')}` : 'Todas las personas con acceso están en el modelo' },
   ];
   return el(
     'div',
@@ -617,8 +620,60 @@ function userRow(u) {
   );
 }
 
+function adoptUser(x) {
+  S.modal = {
+    type: 'user',
+    prefill: true,
+    user: cleanUser({
+      email: x.email,
+      role: x.suggestedRole,
+      write: x.write,
+      read: x.read,
+      notes: `Incorporado desde ${x.sources.join(' + ')}`,
+    }),
+  };
+  render();
+}
+
+function viewExternal() {
+  const ext = externalUsers(S.draft, S.da.rows, S.eds.role, site());
+  if (!ext.length) return null;
+  return el(
+    'section',
+    { class: 'gv-card gv-card-flush gv-card-ext' },
+    el(
+      'div',
+      { class: 'gv-card-head gv-pad' },
+      el('div', {}, el('h3', {}, icon('alert'), ` Con acceso real fuera del modelo (${ext.length})`), el('p', { class: 'gv-muted' }, 'Tienen reglas manuales en la hoja permissions o un rol en el sitio, pero el modelo no los gobierna. Incorpóralos para verlos en la matriz y gestionarlos desde aquí.')),
+    ),
+    el(
+      'div',
+      { class: 'gv-table-wrap' },
+      el(
+        'table',
+        { class: 'gv-table' },
+        el('thead', {}, el('tr', {}, ['Usuario', 'Origen', 'Rol EDS', 'Escritura', 'Lectura', ''].map((h) => el('th', { scope: 'col' }, h)))),
+        el('tbody', {}, ext.map((x) => el(
+          'tr',
+          {},
+          el('td', {}, el('div', { class: 'gv-user' }, avatar({ email: x.email, role: x.suggestedRole }), el('div', {}, el('strong', {}, x.email.split('@')[0]), el('span', { class: 'gv-sub' }, x.email)))),
+          el('td', {}, x.sources.map((s) => el('span', { class: `gv-layer-tag gv-layer-${s.toLowerCase()}` }, s))),
+          el('td', {}, x.eds.join(', ') || el('span', { class: 'gv-muted' }, '—')),
+          el('td', {}, x.write.length ? x.write.map((p) => pathChip(p)) : el('span', { class: 'gv-muted' }, '—')),
+          el('td', {}, x.read.map((p) => pathChip(p, 'read'))),
+          el('td', { class: 'gv-row-actions' }, el('button', { class: 'gv-btn gv-btn-primary', disabled: S.busy, onclick: () => adoptUser(x) }, icon('plus'), 'Incorporar')),
+        ))),
+      ),
+    ),
+  );
+}
+
 function viewUsers() {
   if (!S.draft.length) return emptyState('Sin usuarios', 'Añade el primer usuario.', null);
+  return el('div', { class: 'gv-stack' }, viewExternal(), viewModelUsers());
+}
+
+function viewModelUsers() {
   return el(
     'section',
     { class: 'gv-card gv-card-flush' },
@@ -1013,8 +1068,8 @@ function pathPicker(name, selected, level) {
 }
 
 function userModal() {
-  const editing = S.modal.user;
-  const u = editing || cleanUser({ role: 'editor', ...ROLES.editor.defaults });
+  const editing = S.modal.prefill ? null : S.modal.user;
+  const u = S.modal.user || cleanUser({ role: 'editor', ...ROLES.editor.defaults });
   const locked = !!editing?.protected;
   const self = editing && editing.email === S.me.email;
   const form = el(
